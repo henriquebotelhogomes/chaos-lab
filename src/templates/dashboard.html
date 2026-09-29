@@ -1,0 +1,423 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Chaos Lab — ShopCore API Simulator</title>
+    <!-- Tailwind CSS CDN -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@300;400;500;600;700;800&family=JetBrains+Mono:wght@400;500;600&display=swap');
+        body {
+            font-family: 'Plus Jakarta Sans', sans-serif;
+            background-color: #0b0f17;
+            color: #e2e8f0;
+        }
+        .mono {
+            font-family: 'JetBrains Mono', monospace;
+        }
+    </style>
+</head>
+<body class="min-h-screen flex flex-col justify-between">
+    <!-- Navbar -->
+    <header class="border-b border-slate-800 bg-slate-900/60 backdrop-blur-md sticky top-0 z-50 px-6 py-4">
+        <div class="max-w-7xl mx-auto flex items-center justify-between">
+            <div class="flex items-center gap-3">
+                <span class="p-2.5 bg-rose-500/10 border border-rose-500/30 rounded-xl text-rose-400 text-xl shadow-inner">
+                    <i class="fa-solid fa-flask-vial"></i>
+                </span>
+                <div>
+                    <h1 class="text-xl font-bold tracking-tight text-white flex items-center gap-2">
+                        Chaos Lab <span class="text-xs px-2 py-0.5 rounded-full bg-slate-800 text-slate-400 border border-slate-700 font-mono font-normal">v1.0.0</span>
+                    </h1>
+                    <p class="text-xs text-slate-400">Microsserviço de E-Commerce com Injeção de Falhas para o OpsMesh</p>
+                </div>
+            </div>
+
+            <div class="flex items-center gap-4">
+                <div id="healthBadge" class="flex items-center gap-2 px-3 py-1.5 rounded-lg bg-emerald-500/10 border border-emerald-500/30 text-emerald-400 text-xs font-semibold uppercase tracking-wider">
+                    <span class="w-2 h-2 rounded-full bg-emerald-400 animate-pulse"></span>
+                    <span id="healthText">SISTEMA SAUDÁVEL</span>
+                </div>
+                <a href="/docs" target="_blank" class="text-xs font-semibold px-3 py-2 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-200 border border-slate-700 transition flex items-center gap-1.5">
+                    <i class="fa-solid fa-book-open"></i> API Docs (Scalar)
+                </a>
+                <a href="https://opsmesh-197215016090.us-central1.run.app" target="_blank" class="text-xs font-semibold px-3 py-2 rounded-lg bg-indigo-600 hover:bg-indigo-500 text-white shadow-lg shadow-indigo-500/20 transition flex items-center gap-1.5">
+                    <i class="fa-solid fa-shield-halved"></i> OpsMesh Console
+                </a>
+            </div>
+        </div>
+    </header>
+
+    <!-- Main Content -->
+    <main class="max-w-7xl mx-auto px-6 py-8 flex-1 w-full space-y-8">
+        <!-- Banner Roleta de Caos -->
+        <div class="bg-gradient-to-r from-rose-950/40 via-purple-950/30 to-slate-900 border border-rose-800/40 rounded-2xl p-6 shadow-xl relative overflow-hidden flex flex-col md:flex-row items-center justify-between gap-6">
+            <div class="space-y-2">
+                <div class="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-rose-500/20 border border-rose-500/40 text-rose-300 text-xs font-bold uppercase tracking-wider">
+                    <i class="fa-solid fa-dice text-sm"></i> Simulação Aleatória de Crise
+                </div>
+                <h2 class="text-2xl font-extrabold text-white">Roleta Russa do Caos em Produção</h2>
+                <p class="text-sm text-slate-300 max-w-2xl leading-relaxed">
+                    Sorteia aleatoriamente um dos 5 cenários críticos de produção (Pool Exhaustion, Timeout 15s, Memory Leak, Gateway Flap ou Bad Migration). O Datadog APM captura a anomalia e notifica o OpsMesh para diagnóstico autônomo.
+                </p>
+            </div>
+            <button onclick="triggerFault('/chaos/roulette')" class="px-6 py-3.5 rounded-xl bg-gradient-to-r from-rose-600 to-red-600 hover:from-rose-500 hover:to-red-500 text-white font-bold shadow-lg shadow-rose-600/30 transition transform hover:-translate-y-0.5 active:translate-y-0 flex items-center gap-3 shrink-0">
+                <i class="fa-solid fa-skull-crossbones text-lg"></i>
+                Disparar Falha Aleatória
+            </button>
+        </div>
+
+        <!-- Telemetria & Status Cards -->
+        <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+            <div class="bg-slate-900/80 border border-slate-800 rounded-xl p-5 space-y-2">
+                <div class="flex items-center justify-between text-xs text-slate-400 font-medium">
+                    <span>Pool Conexões Postgres</span>
+                    <i class="fa-solid fa-database text-slate-500"></i>
+                </div>
+                <div class="flex items-baseline gap-2">
+                    <span id="connCount" class="text-2xl font-bold font-mono text-white">2/10</span>
+                    <span id="connStatus" class="text-xs font-medium text-emerald-400">Normal</span>
+                </div>
+                <div class="w-full bg-slate-800 h-1.5 rounded-full overflow-hidden">
+                    <div id="connBar" class="bg-emerald-500 h-full w-[20%] transition-all duration-500"></div>
+                </div>
+            </div>
+
+            <div class="bg-slate-900/80 border border-slate-800 rounded-xl p-5 space-y-2">
+                <div class="flex items-center justify-between text-xs text-slate-400 font-medium">
+                    <span>Vazamento de Memória</span>
+                    <i class="fa-solid fa-memory text-slate-500"></i>
+                </div>
+                <div class="flex items-baseline gap-2">
+                    <span id="leakCount" class="text-2xl font-bold font-mono text-white">0 MB</span>
+                    <span id="leakStatus" class="text-xs font-medium text-emerald-400">GC OK</span>
+                </div>
+                <div class="w-full bg-slate-800 h-1.5 rounded-full overflow-hidden">
+                    <div id="leakBar" class="bg-emerald-500 h-full w-[0%] transition-all duration-500"></div>
+                </div>
+            </div>
+
+            <div class="bg-slate-900/80 border border-slate-800 rounded-xl p-5 space-y-2">
+                <div class="flex items-center justify-between text-xs text-slate-400 font-medium">
+                    <span>Falhas Injetadas</span>
+                    <i class="fa-solid fa-bolt text-slate-500"></i>
+                </div>
+                <div class="flex items-baseline gap-2">
+                    <span id="totalFaults" class="text-2xl font-bold font-mono text-amber-400">0</span>
+                    <span class="text-xs text-slate-500">eventos</span>
+                </div>
+                <p class="text-xs text-slate-500">Capturados pelo Datadog APM</p>
+            </div>
+
+            <div class="bg-slate-900/80 border border-slate-800 rounded-xl p-5 space-y-2">
+                <div class="flex items-center justify-between text-xs text-slate-400 font-medium">
+                    <span>Mitigações Runtime (Tier 1)</span>
+                    <i class="fa-solid fa-shield-check text-slate-500"></i>
+                </div>
+                <div class="flex items-baseline gap-2">
+                    <span id="totalMitigations" class="text-2xl font-bold font-mono text-indigo-400">0</span>
+                    <span class="text-xs text-slate-500">aplicadas</span>
+                </div>
+                <p class="text-xs text-slate-500">Via POST /operations/mitigate</p>
+            </div>
+        </div>
+
+        <!-- Painel de Controle de Falhas Cirúrgicas -->
+        <div class="grid grid-cols-1 lg:grid-cols-3 gap-8">
+            <div class="lg:col-span-2 space-y-6">
+                <div class="bg-slate-900/80 border border-slate-800 rounded-2xl p-6 space-y-6">
+                    <div class="flex items-center justify-between border-b border-slate-800 pb-4">
+                        <div>
+                            <h3 class="text-lg font-bold text-white flex items-center gap-2">
+                                <i class="fa-solid fa-sliders text-indigo-400"></i> Injetores Cirúrgicos de Falhas
+                            </h3>
+                            <p class="text-xs text-slate-400">Acione cenários individuais de degradação para validar a investigação do OpsMesh</p>
+                        </div>
+                        <button onclick="resetChaos()" class="text-xs font-semibold px-3 py-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-300 border border-slate-700 transition flex items-center gap-1.5">
+                            <i class="fa-solid fa-rotate-left"></i> Resetar Tudo
+                        </button>
+                    </div>
+
+                    <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                        <!-- Botão 1: Postgres Pool -->
+                        <div class="p-4 rounded-xl bg-slate-800/40 border border-slate-700/60 hover:border-slate-600 transition space-y-3">
+                            <div class="flex items-center justify-between">
+                                <span class="text-sm font-bold text-white flex items-center gap-2">
+                                    <i class="fa-solid fa-database text-rose-400"></i> Pool de Postgres
+                                </span>
+                                <span id="badgePostgres" class="text-[10px] font-bold px-2 py-0.5 rounded bg-slate-700 text-slate-300 uppercase">Inativo</span>
+                            </div>
+                            <p class="text-xs text-slate-400 leading-relaxed">
+                                Força 15 conexões ativas simultâneas (limite 10), gerando 503 OperationalError.
+                            </p>
+                            <button onclick="triggerFault('/chaos/inject/postgres-pool')" class="w-full py-2 px-3 rounded-lg bg-rose-600/20 hover:bg-rose-600/30 text-rose-300 border border-rose-500/30 text-xs font-semibold transition flex items-center justify-center gap-2">
+                                <i class="fa-solid fa-fire"></i> Injetar Esgotamento
+                            </button>
+                        </div>
+
+                        <!-- Botão 2: Timeout 15s -->
+                        <div class="p-4 rounded-xl bg-slate-800/40 border border-slate-700/60 hover:border-slate-600 transition space-y-3">
+                            <div class="flex items-center justify-between">
+                                <span class="text-sm font-bold text-white flex items-center gap-2">
+                                    <i class="fa-solid fa-clock text-amber-400"></i> Timeout Inventário
+                                </span>
+                                <span id="badgeTimeout" class="text-[10px] font-bold px-2 py-0.5 rounded bg-slate-700 text-slate-300 uppercase">Inativo</span>
+                            </div>
+                            <p class="text-xs text-slate-400 leading-relaxed">
+                                Simula micro-serviço de estoque congelado por 15s, estourando 504 Gateway Timeout.
+                            </p>
+                            <button onclick="triggerFault('/chaos/inject/timeout')" class="w-full py-2 px-3 rounded-lg bg-amber-600/20 hover:bg-amber-600/30 text-amber-300 border border-amber-500/30 text-xs font-semibold transition flex items-center justify-center gap-2">
+                                <i class="fa-solid fa-hourglass-end"></i> Injetar Timeout 15s
+                            </button>
+                        </div>
+
+                        <!-- Botão 3: Memory Leak -->
+                        <div class="p-4 rounded-xl bg-slate-800/40 border border-slate-700/60 hover:border-slate-600 transition space-y-3">
+                            <div class="flex items-center justify-between">
+                                <span class="text-sm font-bold text-white flex items-center gap-2">
+                                    <i class="fa-solid fa-memory text-purple-400"></i> Memory Leak (+25MB)
+                                </span>
+                                <span id="badgeMemory" class="text-[10px] font-bold px-2 py-0.5 rounded bg-slate-700 text-slate-300 uppercase">Inativo</span>
+                            </div>
+                            <p class="text-xs text-slate-400 leading-relaxed">
+                                Aloca buffers sem descarte no Garbage Collector simulando leak cumulativo.
+                            </p>
+                            <button onclick="triggerFault('/chaos/inject/memory-leak')" class="w-full py-2 px-3 rounded-lg bg-purple-600/20 hover:bg-purple-600/30 text-purple-300 border border-purple-500/30 text-xs font-semibold transition flex items-center justify-center gap-2">
+                                <i class="fa-solid fa-arrow-trend-up"></i> Alocar +25MB Leak
+                            </button>
+                        </div>
+
+                        <!-- Botão 4: Payment Flapping -->
+                        <div class="p-4 rounded-xl bg-slate-800/40 border border-slate-700/60 hover:border-slate-600 transition space-y-3">
+                            <div class="flex items-center justify-between">
+                                <span class="text-sm font-bold text-white flex items-center gap-2">
+                                    <i class="fa-solid fa-credit-card text-blue-400"></i> Falha Cartão (502)
+                                </span>
+                                <span id="badgePayment" class="text-[10px] font-bold px-2 py-0.5 rounded bg-slate-700 text-slate-300 uppercase">Inativo</span>
+                            </div>
+                            <p class="text-xs text-slate-400 leading-relaxed">
+                                Simula timeout na API externa da operadora de pagamento (Stripe / Adyen).
+                            </p>
+                            <button onclick="triggerFault('/chaos/inject/payment-flap')" class="w-full py-2 px-3 rounded-lg bg-blue-600/20 hover:bg-blue-600/30 text-blue-300 border border-blue-500/30 text-xs font-semibold transition flex items-center justify-center gap-2">
+                                <i class="fa-solid fa-ban"></i> Injetar Falha Cartão
+                            </button>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Teste de Tráfego Real -->
+                <div class="bg-slate-900/80 border border-slate-800 rounded-2xl p-6 flex flex-col sm:flex-row items-center justify-between gap-4">
+                    <div class="space-y-1">
+                        <h4 class="text-base font-bold text-white flex items-center gap-2">
+                            <i class="fa-solid fa-cart-shopping text-emerald-400"></i> Simular Checkout Real (Tráfego de Negócio)
+                        </h4>
+                        <p class="text-xs text-slate-400">
+                            Dispara requisição <span class="font-mono text-slate-300">POST /api/v1/checkout</span> para testar comportamento sob o estado atual do sistema.
+                        </p>
+                    </div>
+                    <button onclick="simulateCheckout()" class="px-5 py-2.5 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white font-bold text-xs shadow-md shadow-emerald-600/20 transition flex items-center gap-2 shrink-0">
+                        <i class="fa-solid fa-paper-plane"></i> Executar Compra
+                    </button>
+                </div>
+            </div>
+
+            <!-- Coluna Direita: Live Event Feed & Remediation Hook -->
+            <div class="space-y-6">
+                <!-- Caixa de Remediação Manual / Teste OpsMesh -->
+                <div class="bg-gradient-to-b from-indigo-950/40 to-slate-900 border border-indigo-800/40 rounded-2xl p-5 space-y-4">
+                    <div class="flex items-center gap-2 text-indigo-300 font-bold text-sm">
+                        <i class="fa-solid fa-robot text-base"></i> OpsMesh Runtime Mitigation (Tier 1)
+                    </div>
+                    <p class="text-xs text-slate-300 leading-relaxed">
+                        Endpoint chamado pelo OpsMesh (<span class="font-mono text-indigo-300">POST /operations/mitigate</span>) para desescalar o incidente em tempo real.
+                    </p>
+                    <div class="grid grid-cols-1 gap-2 pt-2">
+                        <button onclick="applyMitigation('DATABASE_CONNECTION_SCALE')" class="w-full text-left px-3 py-2 rounded-lg bg-slate-800 hover:bg-slate-700 text-xs font-semibold text-slate-200 border border-slate-700 transition flex items-center justify-between">
+                            <span>Escalar Pool & Matar Idle</span>
+                            <i class="fa-solid fa-chevron-right text-slate-500 text-[10px]"></i>
+                        </button>
+                        <button onclick="applyMitigation('CIRCUIT_BREAKER_ACTIVATE')" class="w-full text-left px-3 py-2 rounded-lg bg-slate-800 hover:bg-slate-700 text-xs font-semibold text-slate-200 border border-slate-700 transition flex items-center justify-between">
+                            <span>Ativar Circuit Breaker</span>
+                            <i class="fa-solid fa-chevron-right text-slate-500 text-[10px]"></i>
+                        </button>
+                        <button onclick="applyMitigation('POD_ROLLOUT_RESTART')" class="w-full text-left px-3 py-2 rounded-lg bg-slate-800 hover:bg-slate-700 text-xs font-semibold text-slate-200 border border-slate-700 transition flex items-center justify-between">
+                            <span>Flush GC & Restart Pod</span>
+                            <i class="fa-solid fa-chevron-right text-slate-500 text-[10px]"></i>
+                        </button>
+                    </div>
+                </div>
+
+                <!-- Feed de Eventos -->
+                <div class="bg-slate-900/80 border border-slate-800 rounded-2xl p-5 space-y-3">
+                    <div class="flex items-center justify-between border-b border-slate-800 pb-2">
+                        <span class="text-xs font-bold text-slate-300 uppercase tracking-wider flex items-center gap-2">
+                            <i class="fa-solid fa-list-timeline text-slate-500"></i> Histórico Recente
+                        </span>
+                        <span class="w-2 h-2 rounded-full bg-emerald-400 animate-ping"></span>
+                    </div>
+                    <div id="eventFeed" class="space-y-2 max-h-60 overflow-y-auto text-xs font-mono pr-1">
+                        <div class="text-slate-500 text-center py-4">Nenhum evento registrado ainda.</div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </main>
+
+    <!-- Footer -->
+    <footer class="border-t border-slate-800 bg-slate-950 px-6 py-4 text-center text-xs text-slate-500">
+        <p>Chaos Lab — ShopCore API Simulator • Integrado nativamente ao Datadog APM e ao OpsMesh Incident Commander</p>
+    </footer>
+
+    <!-- Script de Interação -->
+    <script>
+        async function fetchStatus() {
+            try {
+                const res = await fetch('/chaos/status');
+                const data = await res.json();
+                renderUI(data);
+            } catch (err) {
+                console.error("Falha ao buscar status do Chaos Lab:", err);
+            }
+        }
+
+        function renderUI(data) {
+            // Health Badge
+            const healthBadge = document.getElementById('healthBadge');
+            const healthText = document.getElementById('healthText');
+            if (data.is_healthy) {
+                healthBadge.className = "flex items-center gap-2 px-3 py-1.5 rounded-lg bg-emerald-500/10 border border-emerald-500/30 text-emerald-400 text-xs font-semibold uppercase tracking-wider";
+                healthText.textContent = "SISTEMA SAUDÁVEL";
+            } else {
+                healthBadge.className = "flex items-center gap-2 px-3 py-1.5 rounded-lg bg-rose-500/10 border border-rose-500/30 text-rose-400 text-xs font-semibold uppercase tracking-wider animate-pulse";
+                healthText.textContent = "CRÍTICO / DEGRADADO";
+            }
+
+            // Connection Pool
+            document.getElementById('connCount').textContent = `${data.simulated_active_conns}/${data.simulated_max_conns}`;
+            const connStatus = document.getElementById('connStatus');
+            const connBar = document.getElementById('connBar');
+            if (data.postgres_pool_exhausted) {
+                connStatus.textContent = "ESTOURADO (503)";
+                connStatus.className = "text-xs font-medium text-rose-400";
+                connBar.className = "bg-rose-500 h-full w-[100%] transition-all duration-500";
+            } else {
+                connStatus.textContent = "Normal";
+                connStatus.className = "text-xs font-medium text-emerald-400";
+                connBar.className = "bg-emerald-500 h-full w-[20%] transition-all duration-500";
+            }
+
+            // Memory Leak
+            document.getElementById('leakCount').textContent = `${data.memory_leak_mb} MB`;
+            const leakStatus = document.getElementById('leakStatus');
+            const leakBar = document.getElementById('leakBar');
+            if (data.memory_leak_mb > 0) {
+                leakStatus.textContent = "Vazando";
+                leakStatus.className = "text-xs font-medium text-purple-400";
+                leakBar.className = "bg-purple-500 h-full w-[80%] transition-all duration-500";
+            } else {
+                leakStatus.textContent = "GC OK";
+                leakStatus.className = "text-xs font-medium text-emerald-400";
+                leakBar.className = "bg-emerald-500 h-full w-[0%] transition-all duration-500";
+            }
+
+            // Counters
+            document.getElementById('totalFaults').textContent = data.total_faults_injected;
+            document.getElementById('totalMitigations').textContent = data.total_mitigations_applied;
+
+            // Badges
+            updateBadge('badgePostgres', data.postgres_pool_exhausted);
+            updateBadge('badgeTimeout', data.inventory_timeout);
+            updateBadge('badgeMemory', data.memory_leak);
+            updateBadge('badgePayment', data.payment_gateway_flapping);
+
+            // History Feed
+            const feed = document.getElementById('eventFeed');
+            if (data.recent_events && data.recent_events.length > 0) {
+                feed.innerHTML = data.recent_events.slice().reverse().map(e => `
+                    <div class="p-2 rounded bg-slate-800/60 border border-slate-700/50 space-y-1">
+                        <div class="flex items-center justify-between text-[10px]">
+                            <span class="font-bold ${e.event_type.includes('FAULT') ? 'text-rose-400' : 'text-indigo-400'}">${e.event_type}</span>
+                            <span class="text-slate-500">${e.timestamp.split('T')[1].slice(0, 8)}</span>
+                        </div>
+                        <p class="text-[11px] text-slate-300">${e.details}</p>
+                    </div>
+                `).join('');
+            }
+        }
+
+        function updateBadge(elementId, isActive) {
+            const el = document.getElementById(elementId);
+            if (isActive) {
+                el.className = "text-[10px] font-bold px-2 py-0.5 rounded bg-rose-500/20 text-rose-300 border border-rose-500/30 uppercase";
+                el.textContent = "ATIVO";
+            } else {
+                el.className = "text-[10px] font-bold px-2 py-0.5 rounded bg-slate-700 text-slate-300 uppercase";
+                el.textContent = "Inativo";
+            }
+        }
+
+        async function triggerFault(endpoint) {
+            try {
+                const res = await fetch(endpoint, { method: 'POST' });
+                const json = await res.json();
+                fetchStatus();
+            } catch (err) {
+                alert("Erro ao disparar falha: " + err.message);
+            }
+        }
+
+        async function resetChaos() {
+            try {
+                await fetch('/chaos/reset', { method: 'POST' });
+                fetchStatus();
+            } catch (err) {
+                alert("Erro ao resetar: " + err.message);
+            }
+        }
+
+        async function applyMitigation(actionType) {
+            try {
+                const res = await fetch('/operations/mitigate', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ action_type: actionType, requester: "Manual-UI-Tester" })
+                });
+                const json = await res.json();
+                alert(`✅ Mitigação executada: ${json.message}`);
+                fetchStatus();
+            } catch (err) {
+                alert("Erro ao mitigar: " + err.message);
+            }
+        }
+
+        async function simulateCheckout() {
+            try {
+                const res = await fetch('/api/v1/checkout', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        customer_id: "cust-demo-42",
+                        items: [{ product_id: "prod-macbook", quantity: 1 }],
+                        shipping_address: "Av. Paulista 1000, SP"
+                    })
+                });
+                const json = await res.json();
+                if (res.ok) {
+                    alert(`🎉 Compra realizada com sucesso! ID: ${json.order_id} (Status HTTP ${res.status})`);
+                } else {
+                    alert(`🚨 Falha no Checkout! Status HTTP ${res.status}\nDetalhe do Erro: ${json.detail}`);
+                }
+                fetchStatus();
+            } catch (err) {
+                alert("Erro de conexão no Checkout: " + err.message);
+            }
+        }
+
+        // Auto poll every 3 seconds
+        fetchStatus();
+        setInterval(fetchStatus, 3000);
+    </script>
+</body>
+</html>
