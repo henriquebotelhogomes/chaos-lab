@@ -1,48 +1,43 @@
 # ==========================================
-# Multi-Stage Dockerfile for Chaos Lab
-# Optimized for Google Cloud Run (Scale-to-Zero)
+# Stage 1: Python Dependencies with uv
 # ==========================================
-
-FROM ghcr.io/astral-sh/uv:0.5.21 AS uv_bin
 FROM python:3.12-slim AS builder
-
-ENV PYTHONUNBUFFERED=1 \
-    PYTHONDONTWRITEBYTECODE=1 \
-    UV_COMPILE_BYTECODE=1 \
-    UV_LINK_MODE=copy
-
 WORKDIR /app
 
-COPY --from=uv_bin /uv /uvx /bin/
+ENV PYTHONUNBUFFERED=1 \
+    PYTHONDONTWRITEBYTECODE=1
 
-# Install dependencies using uv
-COPY pyproject.toml .
-RUN uv venv /opt/venv && \
-    . /opt/venv/bin/activate && \
-    uv pip install --no-cache -r pyproject.toml
+# Install uv for blazing-fast package management
+COPY --from=ghcr.io/astral-sh/uv:latest /uv /bin/uv
+
+# Copy pyproject.toml, README.md, and source code
+COPY pyproject.toml README.md ./
+COPY src/ ./src/
+RUN uv pip install --system --no-cache -e .
 
 # ==========================================
-# Final Runtime Stage (Non-Root User)
+# Stage 2: Final Production Runtime (Scale-to-Zero)
 # ==========================================
 FROM python:3.12-slim AS runner
+WORKDIR /app
 
 ENV PYTHONUNBUFFERED=1 \
     PYTHONDONTWRITEBYTECODE=1 \
-    PATH="/opt/venv/bin:$PATH" \
-    PORT=8080
+    PORT=8080 \
+    HOST="0.0.0.0"
 
-WORKDIR /app
+# Security: Create non-root user
+RUN addgroup --system --gid 1001 chaosgroup && \
+    adduser --system --uid 1001 --gid 1001 chaosuser
 
-# Security: Create and run as non-root user
-RUN groupadd -g 10001 appuser && \
-    useradd -u 10000 -g appuser -s /bin/bash -m appuser
+# Copy installed packages and application binaries
+COPY --from=builder /usr/local/lib/python3.12/site-packages /usr/local/lib/python3.12/site-packages
+COPY --from=builder /usr/local/bin /usr/local/bin
+COPY --chown=chaosuser:chaosgroup src/ /app/src/
 
-# Copy virtualenv and application code
-COPY --from=builder /opt/venv /opt/venv
-COPY src /app/src
-
-USER appuser
+USER chaosuser
 
 EXPOSE 8080
 
 CMD ["uvicorn", "src.main:app", "--host", "0.0.0.0", "--port", "8080"]
+
